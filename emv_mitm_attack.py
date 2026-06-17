@@ -3,102 +3,96 @@ import time
 
 class Terminal:
     def __init__(self):
-        # Сума транзакції (наприклад, купівля дорогого товару)
         self.amount = 25000 
         self.merchant = "Магазин Електроніки"
-        
-        # TTQ (Terminal Transaction Qualifiers) - байти налаштувань термінала.
-        # Байт 2, Біт 8 (у двійковому вигляді) = 1 означає: "Вимагається перевірка власника (CDCVM / FaceID)"
+        # TTQ (Terminal Transaction Qualifiers)
         self.ttq_normal = "00100000 10000000 00000000 00000000"
 
     def send_request(self):
         print(f"\n[Термінал] Ініціалізація транзакції: {self.amount} грн ({self.merchant})")
-        print(f"[Термінал] Відправка параметрів TTQ: {self.ttq_normal}")
-        return {
-            "amount": self.amount, 
-            "ttq": self.ttq_normal, 
-            "merchant": self.merchant
-        }
+        time.sleep(1)
+        print(f"[Термінал] Відправка APDU-пакета з TTQ: {self.ttq_normal}")
+        return {"amount": self.amount, "ttq": self.ttq_normal, "merchant": self.merchant}
 
 class MitMAttacker:
     def intercept_and_modify(self, terminal_data):
-        print("\n[!] Хакер (MitM) перехопив дані між терміналом і смартфоном!")
-        time.sleep(1.5)
+        print("\n[!] Спрацювало обладнання хакера: Перехоплено радіоканал NFC!")
+        time.sleep(1)
         
+        print("\n[~] ДЕТАЛІЗАЦІЯ: Логічна атака Downgrade (Зниження безпеки)")
+        time.sleep(1)
+        print(f"    [*] 1. Оригінальний пакет (TTQ): {terminal_data['ttq']}")
+        print("           ^ Другий байт '10000000' вимагає від смартфона перевірку FaceID")
+        time.sleep(2)
+        
+        print("    [*] 2. Втручання в пакет: Застосування XOR-маски для скидання 8-го біта...")
         modified_data = terminal_data.copy()
-        
-        # Атака Downgrade (зниження рівня безпеки): 
-        # Хакер змінює біт вимоги FaceID з 1 на 0 і змінює тип мерчанта на "Транзит" (Метро).
-        # У транспортних терміналах FaceID не вимагається для пришвидшення проходу.
         modified_data["ttq"] = "00100000 00000000 00000000 00000000"
-        modified_data["merchant"] = "Метрополітен (Підмінено)"
-        
-        print("[!] Хакер модифікував байти TTQ: Вимкнено вимогу перевірки FaceID/PIN!")
-        print(f"[!] Підроблений TTQ, що летить до смартфона: {modified_data['ttq']}")
+        modified_data["merchant"] = "Метрополітен (Транзитна зона)"
         time.sleep(1.5)
+        
+        print(f"    [*] 3. Модифікований пакет (TTQ): {modified_data['ttq']}")
+        print("           ^ Другий байт '00000000' (Вимогу FaceID ВИДАЛЕНО)")
+        time.sleep(1)
+        
+        print("[!] Хакер ретранслює зламаний пакет на смартфон жертви...")
         return modified_data
 
 class ApplePayDevice:
     def process_transaction(self, data):
+        time.sleep(1.5)
         print(f"\n[Смартфон] Отримано запит на оплату від: {data['merchant']}")
         time.sleep(1)
         
-        # Смартфон аналізує перехоплений і змінений байт налаштувань (Байт 2)
         ttq_byte_2 = data["ttq"].split()[1]
         
         if ttq_byte_2[0] == '1':
-            print("[Смартфон] Аналіз TTQ: Вимагається автентифікація.")
+            print("[Смартфон] Аналіз TTQ: Вимагається строга автентифікація.")
             print("[Смартфон] Очікування FaceID... [УСПІХ]")
             cdcvm_performed = True
         else:
-            print("[Смартфон] Аналіз TTQ: Транзитна транзакція (швидкий прохід).")
-            print("[Смартфон] КРИТИЧНО: FaceID пропущено згідно з налаштуваннями термінала!")
+            print("[Смартфон] Аналіз TTQ: Вимоги перевірки відсутні (Express Transit Mode).")
+            print("[Смартфон] КРИТИЧНО: FaceID пропущено! Транзакцію дозволено автоматично.")
             cdcvm_performed = False
             
         time.sleep(1)
-        print("[Смартфон] Зняття коштів та генерація криптограми ARQC (підпису транзакції)...")
-        # ARQC (Authorization Request Cryptogram) генерується на основі суми та дати, 
-        # але в класичному EMV він НЕ підписує байти налаштувань TTQ! (У цьому і полягає вразливість)
+        print("[Смартфон] Генерація криптограми ARQC та підпис транзакції...")
         arqc = "ARQC_8F3A2B99_VALID"
-        
         return {"arqc": arqc, "cdcvm_performed": cdcvm_performed}
 
 def run_demo():
-    """
-    Інтерактивна демонстрація логічної атаки Man-in-the-Middle (MitM) на EMV протокол.
-    """
-    print("\n" + "="*65)
-    print("  МОДУЛЬ 3: ЛОГІЧНА MitM-АТАКА НА ПРОТОКОЛ EMV (Apple Pay / Visa)")
-    print("="*65)
+    print("-" * 65)
+    print("МОДУЛЬ 3: ЛОГІЧНА MitM-АТАКА НА ПРОТОКОЛ EMV (Apple Pay)")
+    print("-" * 65)
     
     try:
         terminal = Terminal()
         hacker = MitMAttacker()
         iphone = ApplePayDevice()
         
-        # 1. Термінал створює легітимний запит
+        # 1. Термінал створює запит
         original_data = terminal.send_request()
         
-        # 2. Хакер перехоплює та змінює запит (відбувається атака)
+        # 2. Хакер перехоплює та змінює
         hacked_data = hacker.intercept_and_modify(original_data)
         
-        # 3. Смартфон жертви отримує вже зламані дані
+        # 3. Смартфон отримує зламані дані
         response = iphone.process_transaction(hacked_data)
         
-        print("\n--- РЕЗУЛЬТАТИ ТРАНЗАКЦІЇ ---")
-        print(f"[-] Згенерований криптографічний підпис банку (ARQC): {response['arqc']}")
+        print("\n" + "="*23 + " РЕЗУЛЬТАТИ ТРАНЗАКЦІЇ " + "="*22)
+        print(f"[-] Криптографічний підпис банку (ARQC): {response['arqc']} (Валідний)")
         
         if not response['cdcvm_performed']:
-            print("\n[+] УСПІШНА ШАХРАЙСЬКА ТРАНЗАКЦІЯ!")
-            print(f"[+] Хакер зняв {terminal.amount} грн з чужого заблокованого телефону у своїй кишені,")
-            print("[+] обійшовши біометрію (FaceID) через логічну вразливість протоколу!")
+            print("\n[!] УСПІШНА ШАХРАЙСЬКА ОПЕРАЦІЯ!")
+            print(f"    Хакер успішно списав {terminal.amount} грн із заблокованого телефону,")
+            print("    обійшовши шифрування завдяки логічній вразливості стандарту EMV.")
         else:
             print("\n[-] Транзакція захищена. Біометрію було запитано.")
             
     except Exception as e:
          print(f"\n[!] Сталася помилка у модулі emv_mitm_attack: {e}")
          
-    print("="*65)
+    print("-" * 65)
     input("\nНатисніть Enter, щоб повернутися до головного меню...")
 
 if __name__ == "__main__":
