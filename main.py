@@ -3,9 +3,6 @@ import sys
 import rsa_core
 import timing_attack_sim
 import emv_mitm_attack
-# Заглушки для майбутніх модулів, які ми розробимо на наступних кроках
-# import timing_attack_sim
-# import emv_mitm_attack
 
 def print_menu():
     """
@@ -52,7 +49,7 @@ def main():
                 print("\n[!] Помилка вводу: Необхідно ввести цифру від 1 до 4.")
                 
         except KeyboardInterrupt:
-            # Обробка раптового переривання програми (Ctrl+C)
+            
             print("\n\n[*] Роботу програми примусово завершено користувачем.")
             sys.exit(0)
         except Exception as e:
