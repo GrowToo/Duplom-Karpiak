@@ -2,151 +2,156 @@
 import random
 import math
 import hashlib
+import time
 
 def is_prime(num):
-    """
-    Допоміжна функція: перевірка числа на простоту.
-    Використовується метод перебору дільників (достатньо для навчального PoC).
-    Для реальних промислових систем використовуються тести Міллера-Рабіна тощо.
-    """
+    """Перевірка числа на простоту методом перебору дільників."""
     if num < 2:
         return False
-    # Перевіряємо дільники лише до квадратного кореня з числа
     for i in range(2, int(math.isqrt(num)) + 1):
         if num % i == 0:
             return False
     return True
 
 def generate_prime(min_val=100, max_val=1000):
-    """
-    Генерує випадкове просте число у заданому діапазоні.
-    Використовується для знаходження параметрів 'p' та 'q'.
-    """
+    """Генерує випадкове просте число у заданому діапазоні."""
     prime = random.randint(min_val, max_val)
     while not is_prime(prime):
         prime = random.randint(min_val, max_val)
     return prime
 
 def extended_gcd(a, b):
-    """
-    Розширений алгоритм Евкліда.
-    Повертає кортеж (g, x, y), де g - найбільший спільний дільник (НСД),
-    а x та y - коефіцієнти рівняння Безу (ax + by = g).
-    """
+    """Розширений алгоритм Евкліда."""
     if a == 0:
         return (b, 0, 1)
     g, y, x = extended_gcd(b % a, a)
     return (g, x - (b // a) * y, y)
 
 def mod_inverse(e, phi):
-    """
-    Обчислення мультиплікативного оберненого елемента за модулем.
-    Необхідно для знаходження закритої експоненти 'd', такої що: (e * d) mod phi = 1.
-    """
+    """Обчислення мультиплікативного оберненого елемента за модулем."""
     g, x, y = extended_gcd(e, phi)
     if g != 1:
         raise ValueError("Оберненого елемента не існує (числа не взаємно прості).")
     return x % phi
 
-def generate_keypair(min_val=1000, max_val=5000):
-    """
-    Генерація пари ключів RSA (Відкритого та Закритого).
-    """
-    # 1. Вибираємо два великих простих числа p та q
+def generate_keypair(min_val=1000, max_val=5000, verbose=False):
+    """Генерація пари ключів RSA з можливістю покрокового виводу (verbose)."""
     p = generate_prime(min_val, max_val)
     q = generate_prime(min_val, max_val)
-    while p == q: # Гарантуємо, що p і q - різні
+    while p == q:
         q = generate_prime(min_val, max_val)
         
-    # 2. Обчислюємо модуль n (системний модуль)
     n = p * q
-    
-    # 3. Обчислюємо функцію Ейлера phi(n)
     phi = (p - 1) * (q - 1)
     
-    # 4. Вибираємо відкриту експоненту e, яка взаємно проста з phi
-    # Часто на практиці використовують прості числа Ферма, напр. 65537
     e = random.randrange(2, phi)
     g = math.gcd(e, phi)
     while g != 1:
         e = random.randrange(2, phi)
         g = math.gcd(e, phi)
         
-    # 5. Обчислюємо закриту експоненту d
     d = mod_inverse(e, phi)
     
-    # Відкритий ключ: (e, n), Закритий ключ: (d, n)
+    if verbose:
+        print("\n[~] ДЕТАЛІЗАЦІЯ: Математика генерації ключів (Під капотом)")
+        time.sleep(0.5)
+        print(f"    [*] 1. Згенеровано великі прості числа: p = {p}, q = {q}")
+        time.sleep(0.5)
+        print(f"    [*] 2. Обчислено системний модуль: n = p * q = {n}")
+        time.sleep(0.5)
+        print(f"    [*] 3. Обчислено функцію Ейлера: phi(n) = (p-1)*(q-1) = {phi}")
+        time.sleep(0.5)
+        print(f"    [*] 4. Вибрано відкриту експоненту e (взаємно просту з phi): {e}")
+        time.sleep(0.5)
+        print(f"    [*] 5. Обчислено секретну експоненту d: {d}")
+        print(f"           (Перевірка Безу: ({e} * {d}) mod {phi} = {(e * d) % phi})")
+        time.sleep(1)
+
     return ((e, n), (d, n))
 
 def hash_message(message):
-    """
-    Реалізація гешування повідомлення алгоритмом SHA-256.
-    Повертає ціле число (int), зручне для математичних операцій RSA.
-    """
-    # Перетворюємо рядок у байти та гешуємо
+    """Гешування повідомлення алгоритмом SHA-256 у числове значення."""
     sha_signature = hashlib.sha256(message.encode('utf-8')).hexdigest()
-    # Конвертуємо шістнадцятковий результат у десяткове число
     return int(sha_signature, 16)
 
-def sign_message(message, private_key):
-    """
-    Процедура створення електронного цифрового підпису (ЕЦП).
-    S = (H(m)^d) mod n
-    """
+def sign_message(message, private_key, verbose=False):
+    """Створення ЕЦП з відображенням внутрішніх операцій."""
     d, n = private_key
-    # Обчислюємо геш повідомлення
+    
+    if verbose:
+        print("\n[~] ДЕТАЛІЗАЦІЯ: Процес підписання")
+        time.sleep(0.5)
+        
     h = hash_message(message)
-    # Зменшуємо геш за модулем n (щоб його можна було піднести до степеня в кільці вирахувань n)
+    if verbose:
+        print(f"    [*] 1. Оригінальний геш H(m): {str(h)[:15]}... (скорочено)")
+        time.sleep(0.5)
+        
     h_mod = h % n 
-    # Піднесення до степеня за модулем (Square-and-Multiply оптимізовано в Python)
+    if verbose:
+        print(f"    [*] 2. Зведення гешу за модулем n: h_mod = {h_mod}")
+        time.sleep(0.5)
+        
     signature = pow(h_mod, d, n)
+    if verbose:
+        print(f"    [*] 3. Обчислення підпису: S = (h_mod ^ d) mod n = {signature}")
+        time.sleep(1)
+        
     return signature
 
-def verify_signature(message, signature, public_key):
-    """
-    Процедура верифікації (перевірки) ЕЦП.
-    H(m) == (S^e) mod n
-    """
+def verify_signature(message, signature, public_key, verbose=False):
+    """Верифікація ЕЦП з розгорнутим виводом математики."""
     e, n = public_key
-    # Знову знаходимо геш оригінального повідомлення
+    
+    if verbose:
+        print("\n[~] ДЕТАЛІЗАЦІЯ: Процес верифікації")
+        time.sleep(0.5)
+        
     h = hash_message(message)
     h_mod = h % n
-    
-    # Розшифровуємо підпис за допомогою відкритого ключа
+    if verbose:
+        print(f"    [*] 1. Очікуваний локальний геш документа (h_mod): {h_mod}")
+        time.sleep(0.5)
+        
     h_decrypted = pow(signature, e, n)
-    
-    # Якщо геші співпадають — підпис валідний
+    if verbose:
+        print(f"    [*] 2. Розшифровка підпису відкритим ключем: H' = (S ^ e) mod n = {h_decrypted}")
+        time.sleep(0.5)
+        print(f"    [*] 3. Порівняння: {h_mod} == {h_decrypted}")
+        time.sleep(0.5)
+        
     return h_mod == h_decrypted
 
 def run_demo():
-    """
-    Інтерактивна демонстрація роботи базового алгоритму RSA для головного меню.
-    """
-    print("-" * 50)
-    print("Генеруємо ключі RSA (це може зайняти мить)...")
+    """Інтерактивна демонстрація для головного меню."""
+    print("-" * 65)
+    print("ЗАПУСК БАЗОВОГО АЛГОРИТМУ RSA (З деталізацією процесів)")
+    print("-" * 65)
+    
     try:
-        public_key, private_key = generate_keypair()
-        print(f"[+] Відкритий ключ (e, n): {public_key}")
-        print(f"[+] Закритий ключ (d, n): {private_key}")
+        # Викликаємо генерацію з увімкненим відображенням кроків
+        public_key, private_key = generate_keypair(verbose=True)
+        print(f"\n[+] Згенерований Відкритий ключ (e, n): {public_key}")
+        print(f"[+] Згенерований Закритий ключ (d, n): {private_key}")
         
-        message = input("\nВведіть текстове повідомлення для підписання: ")
+        message = input("\nВведіть текстове повідомлення для підписання: ").strip()
         if not message:
             message = "Тестове повідомлення для диплому Карп'яка Павла"
-            print(f"Використано повідомлення за замовчуванням: '{message}'")
+            print(f"[*] Використано повідомлення за замовчуванням: '{message}'")
             
-        print("\n--- Процес Підписання ---")
-        signature = sign_message(message, private_key)
-        print(f"Згенерований цифровий підпис: {signature}")
+        print("\n" + "="*30 + " ПІДПИСАННЯ " + "="*30)
+        signature = sign_message(message, private_key, verbose=True)
+        print(f"\n[+] ФІНАЛЬНИЙ ЦИФРОВИЙ ПІДПИС: {signature}")
         
-        print("\n--- Процес Верифікації ---")
-        is_valid = verify_signature(message, signature, public_key)
+        print("\n" + "="*30 + " ВЕРИФІКАЦІЯ " + "="*29)
+        is_valid = verify_signature(message, signature, public_key, verbose=True)
         
         if is_valid:
-            print("[+] Верифікація УСПІШНА! Підпис справжній.")
+            print("\n[✓] РЕЗУЛЬТАТ: Верифікація УСПІШНА! Підпис справжній та математично підтверджений.")
         else:
-            print("[-] Верифікація ПРОВАЛЕНА! Підпис підроблено або повідомлення змінено.")
+            print("\n[✗] РЕЗУЛЬТАТ: Верифікація ПРОВАЛЕНА! Підпис підроблено або повідомлення змінено.")
             
-        print("-" * 50)
+        print("-" * 65)
         input("\nНатисніть Enter, щоб повернутися до головного меню...")
         
     except Exception as e:
